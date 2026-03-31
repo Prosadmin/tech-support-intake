@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>技術相談・故障受付フォーム</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== ヘッダー ===== -->
+  <header class="site-header">
+    <div class="header-inner">
+      <span class="header-logo">🔧</span>
+      <span class="header-title">技術サポート受付</span>
+    </div>
+  </header>
+
+  <!-- ===== メインコンテンツ ===== -->
+  <main class="main-content">
+    <div class="form-card">
+
+      <!-- タイトルブロック -->
+      <div class="form-title-block">
+        <h1 class="form-title">技術相談・故障受付フォーム</h1>
+        <p class="form-description">
+          機器トラブル、技術相談、見積依頼、保守相談を受け付けます。<br />
+          内容確認後、担当者よりご連絡します。
+        </p>
+      </div>
+
+      <!-- ===== 送信完了メッセージ（初期非表示） ===== -->
+      <div id="success-block" class="success-block hidden" role="alert">
+        <div class="success-icon">✅</div>
+        <h2 class="success-title">受付が完了しました</h2>
+        <dl class="success-info">
+          <dt>受付番号</dt>
+          <dd id="success-case-key">—</dd>
+          <dt>受付日時</dt>
+          <dd id="success-received-at">—</dd>
+        </dl>
+        <p class="success-note">内容を確認次第、担当者よりご連絡いたします。</p>
+        <button type="button" class="btn-secondary" onclick="resetForm()">別の内容を送信する</button>
+      </div>
+
+      <!-- ===== エラーメッセージ（初期非表示） ===== -->
+      <div id="error-block" class="error-block hidden" role="alert">
+        <strong>エラー：</strong><span id="error-message"></span>
+      </div>
+
+      <!-- ===== 入力フォーム ===== -->
+      <form id="intake-form" novalidate>
+
+        <!-- セクション：依頼者情報 -->
+        <section class="form-section">
+          <h2 class="section-title">依頼者情報</h2>
+
+          <!-- 1. 依頼者区分 -->
+          <div class="form-group">
+            <label for="requester_type" class="form-label required">依頼者区分</label>
+            <select id="requester_type" name="requester_type" class="form-select" required>
+              <option value="">— 選択してください —</option>
+              <option value="商社">商社</option>
+              <option value="本部">本部</option>
+              <option value="協力会社">協力会社</option>
+              <option value="現場担当者">現場担当者</option>
+              <option value="その他">その他</option>
+            </select>
+            <span class="field-error" id="err-requester_type"></span>
+          </div>
+
+          <!-- 2. 会社名 -->
+          <div class="form-group">
+            <label for="company_name" class="form-label required">会社名</label>
+            <input
+              type="text"
+              id="company_name"
+              name="company_name"
+              class="form-input"
+              placeholder="例：株式会社〇〇"
+              required
+            />
+            <span class="field-error" id="err-company_name"></span>
+          </div>
+
+          <!-- 3. 担当者名 -->
+          <div class="form-group">
+            <label for="person_name" class="form-label required">担当者名</label>
+            <input
+              type="text"
+              id="person_name"
+              name="person_name"
+              class="form-input"
+              placeholder="例：山田 太郎"
+              required
+            />
+            <span class="field-error" id="err-person_name"></span>
+          </div>
+
+          <!-- 4. メールアドレス -->
+          <div class="form-group">
+            <label for="email" class="form-label required">メールアドレス</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              class="form-input"
+              placeholder="例：sample@example.com"
+              required
+            />
+            <span class="field-error" id="err-email"></span>
+          </div>
+
+          <!-- 5. 電話番号 -->
+          <div class="form-group">
+            <label for="phone" class="form-label required">電話番号</label>
+            <input
+              type="tel"
+              id="phone"
+              name="phone"
+              class="form-input"
+              placeholder="例：03-1234-5678"
+              required
+            />
+            <span class="field-error" id="err-phone"></span>
+          </div>
+        </section>
+
+        <!-- セクション：受付内容 -->
+        <section class="form-section">
+          <h2 class="section-title">受付内容</h2>
+
+          <!-- 6. 受付種別 -->
+          <div class="form-group">
+            <fieldset class="form-fieldset">
+              <legend class="form-label required">受付種別</legend>
+              <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="request_type" value="故障・不具合相談" required /> 故障・不具合相談</label>
+                <label class="radio-label"><input type="radio" name="request_type" value="技術相談" /> 技術相談</label>
+                <label class="radio-label"><input type="radio" name="request_type" value="見積依頼" /> 見積依頼</label>
+                <label class="radio-label"><input type="radio" name="request_type" value="保守相談" /> 保守相談</label>
+                <label class="radio-label"><input type="radio" name="request_type" value="更新相談" /> 更新相談</label>
+                <label class="radio-label"><input type="radio" name="request_type" value="その他" /> その他</label>
+              </div>
+            </fieldset>
+            <span class="field-error" id="err-request_type"></span>
+          </div>
+
+          <!-- 7. 緊急度 -->
+          <div class="form-group">
+            <fieldset class="form-fieldset">
+              <legend class="form-label required">緊急度</legend>
+              <div class="radio-group radio-group--urgency">
+                <label class="radio-label urgency-high"><input type="radio" name="urgency" value="高い" required /> 高い</label>
+                <label class="radio-label urgency-mid"><input type="radio" name="urgency" value="中程度" /> 中程度</label>
+                <label class="radio-label urgency-low"><input type="radio" name="urgency" value="低い" /> 低い</label>
+              </div>
+            </fieldset>
+            <span class="field-error" id="err-urgency"></span>
+          </div>
+        </section>
+
+        <!-- セクション：設置場所情報 -->
+        <section class="form-section">
+          <h2 class="section-title">設置場所情報</h2>
+
+          <!-- 8. 店舗名 -->
+          <div class="form-group">
+            <label for="store_name" class="form-label required">店舗名</label>
+            <input
+              type="text"
+              id="store_name"
+              name="store_name"
+              class="form-input"
+              placeholder="例：〇〇店"
+              required
+            />
+            <span class="field-error" id="err-store_name"></span>
+          </div>
+
+          <!-- 9. 設置場所住所 -->
+          <div class="form-group">
+            <label for="store_address" class="form-label required">設置場所住所</label>
+            <textarea
+              id="store_address"
+              name="store_address"
+              class="form-textarea"
+              rows="3"
+              placeholder="例：東京都〇〇区〇〇1-2-3"
+              required
+            ></textarea>
+            <span class="field-error" id="err-store_address"></span>
+          </div>
+        </section>
+
+        <!-- セクション：機器情報 -->
+        <section class="form-section">
+          <h2 class="section-title">機器情報</h2>
+
+          <!-- 10. 機器区分 -->
+          <div class="form-group">
+            <label for="equipment_type" class="form-label required">機器区分</label>
+            <select id="equipment_type" name="equipment_type" class="form-select" required>
+              <option value="">— 選択してください —</option>
+              <option value="チラー">チラー</option>
+              <option value="冷凍機">冷凍機</option>
+              <option value="冷蔵機器">冷蔵機器</option>
+              <option value="空調機">空調機</option>
+              <option value="その他">その他</option>
+            </select>
+            <span class="field-error" id="err-equipment_type"></span>
+          </div>
+
+          <!-- 11. メーカー（任意） -->
+          <div class="form-group">
+            <label for="maker" class="form-label">メーカー <span class="optional-badge">任意</span></label>
+            <input
+              type="text"
+              id="maker"
+              name="maker"
+              class="form-input"
+              placeholder="例：三洋"
+            />
+          </div>
+
+          <!-- 12. 型式（任意） -->
+          <div class="form-group">
+            <label for="model" class="form-label">型式 <span class="optional-badge">任意</span></label>
+            <input
+              type="text"
+              id="model"
+              name="model"
+              class="form-input"
+              placeholder="例：ABC-123"
+            />
+          </div>
+
+          <!-- 13. エラーコード（任意） -->
+          <div class="form-group">
+            <label for="error_code" class="form-label">エラーコード <span class="optional-badge">任意</span></label>
+            <input
+              type="text"
+              id="error_code"
+              name="error_code"
+              class="form-input"
+              placeholder="例：E12"
+            />
+          </div>
+        </section>
+
+        <!-- セクション：症状・対応状況 -->
+        <section class="form-section">
+          <h2 class="section-title">症状・対応状況</h2>
+
+          <!-- 14. 症状 -->
+          <div class="form-group">
+            <label for="symptoms" class="form-label required">症状</label>
+            <textarea
+              id="symptoms"
+              name="symptoms"
+              class="form-textarea"
+              rows="4"
+              placeholder="例：冷えが弱く、E12 が表示される"
+              required
+            ></textarea>
+            <span class="field-error" id="err-symptoms"></span>
+          </div>
+
+          <!-- 15. 実施済み対応（任意） -->
+          <div class="form-group">
+            <label for="actions_taken" class="form-label">実施済み対応 <span class="optional-badge">任意</span></label>
+            <textarea
+              id="actions_taken"
+              name="actions_taken"
+              class="form-textarea"
+              rows="3"
+              placeholder="例：再起動を実施したが改善しない"
+            ></textarea>
+          </div>
+
+          <!-- 16. 営業影響 -->
+          <div class="form-group">
+            <fieldset class="form-fieldset">
+              <legend class="form-label required">営業影響</legend>
+              <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="business_impact" value="営業継続可能" required /> 営業継続可能</label>
+                <label class="radio-label"><input type="radio" name="business_impact" value="一部影響あり" /> 一部影響あり</label>
+                <label class="radio-label"><input type="radio" name="business_impact" value="営業継続困難" /> 営業継続困難</label>
+                <label class="radio-label"><input type="radio" name="business_impact" value="不明" /> 不明</label>
+              </div>
+            </fieldset>
+            <span class="field-error" id="err-business_impact"></span>
+          </div>
+
+          <!-- 17. 補足事項（任意） -->
+          <div class="form-group">
+            <label for="notes" class="form-label">補足事項 <span class="optional-badge">任意</span></label>
+            <textarea
+              id="notes"
+              name="notes"
+              class="form-textarea"
+              rows="3"
+              placeholder="例：至急確認希望、訪問希望日時など"
+            ></textarea>
+          </div>
+        </section>
+
+        <!-- セクション：同意 -->
+        <section class="form-section form-section--agree">
+
+          <!-- 18. 利用同意 -->
+          <div class="form-group form-group--checkbox">
+            <label class="checkbox-label">
+              <input type="checkbox" id="agree" name="agree" required />
+              <span>利用規約・個人情報の取扱いに同意する</span>
+            </label>
+            <span class="field-error" id="err-agree"></span>
+          </div>
+        </section>
+
+        <!-- 送信ボタン -->
+        <div class="form-actions">
+          <button type="submit" id="submit-btn" class="btn-primary">
+            <span id="btn-text">送信する</span>
+            <span id="btn-loading" class="hidden">送信中…</span>
+          </button>
+        </div>
+
+      </form>
+      <!-- /intake-form -->
+
+    </div>
+    <!-- /form-card -->
+  </main>
+
+  <!-- ===== フッター ===== -->
+  <footer class="site-footer">
+    <p>&copy; 2026 技術サポート受付システム</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
