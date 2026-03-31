@@ -56,26 +56,40 @@ async function callPleasanter(payload, caseKey, receivedAt) {
   }
 
   const titleValue = `[${caseKey}] ${payload.company_name||''} ${payload.store_name||''}`.trim().slice(0,100);
+
+  // Pleasanter 外部受付テーブルのフィールドマッピング
+  // 表示名(エディタ)  → APIフィールド名
+  // タイトル         → Title
+  // 受付番号(分類A)   → ClassA
+  // チャネル(分類B)   → ClassB
+  // 依頼者区分(分類C) → ClassC
+  // 会社名(分類D)     → ClassD
+  // 担当者名(分類E)   → ClassE
+  // 受付種別(分類F)   → ClassF
+  // 緊急度(分類G)     → ClassG
+  // 店舗名(分類H)     → ClassH
+  // 機器区分(分類I)   → ClassI
+  // メーカー(分類J)   → ClassJ
+  // 設置場所住所(説明A)→ DescriptionA
   const record = {
     Title:        titleValue,
-    Name:         titleValue,
     ClassA:       caseKey,
-    ClassB:       payload.channel        || 'web',
-    ClassC:       payload.requester_type || '',
-    ClassD:       payload.company_name   || '',
-    ClassE:       payload.person_name    || '',
-    ClassF:       payload.request_type   || '',
-    ClassG:       payload.urgency        || '',
-    ClassH:       payload.store_name     || '',
-    ClassI:       payload.equipment_type || '',
-    ClassJ:       payload.maker          || '',
-    DescriptionA: payload.store_address  || '',
-    DescriptionB: payload.model          || '',
-    DescriptionC: payload.error_code     || '',
-    DescriptionD: payload.symptoms       || '',
-    DescriptionE: payload.actions_taken  || '',
-    DescriptionF: payload.business_impact|| '',
-    DescriptionG: payload.notes          || '',
+    ClassB:       payload.channel         || 'web',
+    ClassC:       payload.requester_type  || '',
+    ClassD:       payload.company_name    || '',
+    ClassE:       payload.person_name     || '',
+    ClassF:       payload.request_type    || '',
+    ClassG:       payload.urgency         || '',
+    ClassH:       payload.store_name      || '',
+    ClassI:       payload.equipment_type  || '',
+    ClassJ:       payload.maker           || '',
+    DescriptionA: payload.store_address   || '',
+    DescriptionB: payload.model           || '',
+    DescriptionC: payload.error_code      || '',
+    DescriptionD: payload.symptoms        || '',
+    DescriptionE: payload.actions_taken   || '',
+    DescriptionF: payload.business_impact || '',
+    DescriptionG: payload.notes           || '',
     DateA:        fmtDate(receivedAt),
   };
 
