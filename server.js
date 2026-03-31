@@ -55,8 +55,10 @@ async function callPleasanter(payload, caseKey, receivedAt) {
     return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
   }
 
+  const titleValue = `[${caseKey}] ${payload.company_name||''} ${payload.store_name||''}`.trim().slice(0,100);
   const record = {
-    Title:        `[${caseKey}] ${payload.company_name||''} ${payload.store_name||''}`.trim().slice(0,100),
+    Title:        titleValue,
+    Name:         titleValue,
     ClassA:       caseKey,
     ClassB:       payload.channel        || 'web',
     ClassC:       payload.requester_type || '',
