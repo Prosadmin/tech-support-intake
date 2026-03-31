@@ -43,12 +43,17 @@ if (!PLEASANTER_SITE_ID || !PLEASANTER_API_KEY) {
 // ミドルウェア設定
 // ============================================================
 
-// CORS：ローカル開発用（http://localhost:PORT からのみ許可）
-// 本番環境では origin を実際のドメインに変更すること
+// CORS：許可するオリジンの一覧
+// 公開サイトのドメインと Railway 自身のドメインを許可する
 app.use(cors({
   origin: [
+    // ローカル開発用
     `http://localhost:${PORT}`,
     'http://127.0.0.1:' + PORT,
+    // Genspark 公開サイト
+    'https://qxifbzjw.gensparkspace.com',
+    // Railway 自身（ヘルスチェック等）
+    'https://tech-support-intake-production.up.railway.app',
   ],
   methods: ['GET', 'POST'],
 }));
