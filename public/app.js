@@ -27,36 +27,14 @@
 /** テーブルAPI エンドポイント（このサイト内のデータ保存用） */
 const TABLE_API_ENDPOINT = '/tables/intake';
 
-/** Pleasanter.net upsert API 設定 */
-const PLEASANTER_SITE_ID = '17344501';
-const PLEASANTER_API_KEY = '99173c01ff8598a8561ca5e1d8b17b94a8ba8639b4977bab11925b3b170da3530673069dadf60ecb0377f03036a3db9d2db8f707df04a6ed90b8aa0110b1be66';
-const PLEASANTER_API_URL = `https://pleasanter.net/fs/api/items/${PLEASANTER_SITE_ID}/upsert`;
-
 /**
- * Pleasanter 列マッピング定義
- * キー = Pleasanter の列名、値 = フォームデータのフィールド名
- * 列名を変更する場合はここだけ修正する
+ * Railway 中継サーバーのエンドポイント
+ * ここを変更するだけで送信先を切り替えられる
+ * 将来 AIゲートウェイを追加する場合もここを変更する
  */
-const PLEASANTER_COLUMNS = {
-  ClassA:       'case_key',        // 受付番号（upsert キー）
-  ClassB:       'channel',         // チャネル
-  ClassC:       'requester_type',  // 依頼者区分
-  ClassD:       'company_name',    // 会社名
-  ClassE:       'person_name',     // 担当者名
-  ClassF:       'request_type',    // 受付種別
-  ClassG:       'urgency',         // 緊急度
-  ClassH:       'store_name',      // 店舗名
-  ClassI:       'equipment_type',  // 機器区分
-  ClassJ:       'maker',           // メーカー
-  DescriptionA: 'store_address',   // 設置場所住所
-  DescriptionB: 'model',           // 型式
-  DescriptionC: 'error_code',      // エラーコード
-  DescriptionD: 'symptoms',        // 症状
-  DescriptionE: 'actions_taken',   // 実施済み対応
-  DescriptionF: 'business_impact', // 営業影響
-  DescriptionG: 'notes',           // 補足事項
-  DateA:        'received_at',     // 受付日時
-};
+const RELAY_API_ENDPOINT = 'https://tech-support-intake-production.up.railway.app/api/intake';
+
+// Pleasanter の列マッピングは server.js（Railway側）で管理しています
 
 /** チャネル識別子（フロントは常に "web"） */
 const CHANNEL = 'web';
@@ -279,7 +257,7 @@ async function submitForm(data) {
   errBlk.classList.add('hidden');
 
   try {
-    // ---- ステップ1: テーブルAPI に保存 ----
+    // ---- ステップ1: テーブルAPI に保存（このサイト内） ----
     const tableRes = await fetch(TABLE_API_ENDPOINT, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -290,8 +268,18 @@ async function submitForm(data) {
       throw new Error(`テーブルAPI エラー: ${tableRes.status}`);
     }
 
-    // ---- ステップ2: Pleasanter.net に upsert 登録 ----
-    await callPleasanter(data);
+    // ---- ステップ2: Railway 中継サーバー経由で Pleasanter に登録 ----
+    // 将来 AIゲートウェイを追加する場合は RELAY_API_ENDPOINT を変更するだけでOK
+    const relayRes = await fetch(RELAY_API_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(data),
+    });
+
+    if (!relayRes.ok) {
+      const relayJson = await relayRes.json().catch(() => ({}));
+      throw new Error(`中継サーバー エラー: ${relayRes.status} / ${JSON.stringify(relayJson)}`);
+    }
 
     // ---- 成功 ----
     showSuccessBlock(data.case_key, data.received_at);
@@ -303,51 +291,7 @@ async function submitForm(data) {
   }
 }
 
-// ============================================================
-// Pleasanter.net upsert API 呼び出し
-// ============================================================
-/**
- * Pleasanter.net の upsert API にデータを登録する。
- * PLEASANTER_COLUMNS の定義に従って Record を組み立てる。
- *
- * @param {Object} data フォームデータ
- */
-async function callPleasanter(data) {
-  // Record オブジェクトをマッピング定義から動的に組み立てる
-  const record = {};
-  for (const [col, field] of Object.entries(PLEASANTER_COLUMNS)) {
-    if (col === 'DateA') {
-      // 日付型：ISO文字列をそのまま渡す
-      record[col] = data.received_at || '';
-    } else {
-      record[col] = data[field] || '';
-    }
-  }
-
-  const body = {
-    ApiVersion: 1.1,
-    ApiKey:     PLEASANTER_API_KEY,
-    Keys:       ['ClassA'],   // 受付番号（ClassA）をupsertキーにする
-    Record:     record,
-  };
-
-  console.log('[Pleasanter] 送信開始:', PLEASANTER_API_URL);
-
-  const res = await fetch(PLEASANTER_API_URL, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-  });
-
-  const resJson = await res.json().catch(() => ({}));
-  console.log('[Pleasanter] レスポンス status:', res.status, resJson);
-
-  if (!res.ok) {
-    throw new Error(`Pleasanter API エラー: ${res.status} / ${JSON.stringify(resJson)}`);
-  }
-
-  return resJson;
-}
+// Pleasanter への登録は Railway の server.js が行います
 
 // ============================================================
 // 画面表示ヘルパー
