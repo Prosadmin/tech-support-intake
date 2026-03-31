@@ -2,20 +2,21 @@
  * app.js
  * 技術相談・故障受付フォーム フロントエンドスクリプト
  *
- * 【構成】
- *   ブラウザ → /tables/intake（テーブルAPI）→ データ保存
- *           → Pleasanter.net upsert API  → 案件登録
+ * 【送信フロー】
+ *   ブラウザ → Railway 中継サーバー (/api/intake)
+ *             → Pleasanter.net に登録
+ *             → このサイトの /tables/intake にも保存（バックアップ）
  *
  * 役割：
  *   1. フォームバリデーション
- *   2. 受付番号の採番
- *   3. テーブルAPI（/tables/intake）への POST 保存
- *   4. Pleasanter.net への upsert 登録
+ *   2. 受付番号の採番（フロント側で生成）
+ *   3. Railway 中継サーバーへ POST（Pleasanter 登録を依頼）
+ *   4. バックアップとして /tables/intake にも保存
  *   5. 送信完了／エラーの画面表示
  *   6. 二重送信防止
  *
  * 将来の拡張ポイント（AIゲートウェイ追加時）：
- *   - submitForm() 内の送信前に callAiGateway() を挿入するだけで対応可能
+ *   - RELAY_API_ENDPOINT を AIゲートウェイのURLに変更するだけで対応可能
  */
 
 'use strict';
@@ -24,17 +25,14 @@
 // 定数
 // ============================================================
 
-/** テーブルAPI エンドポイント（このサイト内のデータ保存用） */
-const TABLE_API_ENDPOINT = '/tables/intake';
-
 /**
- * Railway 中継サーバーのエンドポイント
+ * Railway 中継サーバーのエンドポイント（Pleasanter への登録を担当）
  * ここを変更するだけで送信先を切り替えられる
- * 将来 AIゲートウェイを追加する場合もここを変更する
  */
 const RELAY_API_ENDPOINT = 'https://tech-support-intake-production.up.railway.app/api/intake';
 
-// Pleasanter の列マッピングは server.js（Railway側）で管理しています
+/** バックアップ保存用テーブルAPI エンドポイント（このサイト内） */
+const TABLE_API_ENDPOINT = '/tables/intake';
 
 /** チャネル識別子（フロントは常に "web"） */
 const CHANNEL = 'web';
@@ -232,15 +230,13 @@ function generateCaseKey(now) {
 // API 送信処理
 // ============================================================
 /**
- * テーブルAPI と Pleasanter.net の両方にデータを送信する。
+ * Railway 中継サーバー経由で Pleasanter に登録し、
+ * バックアップとしてこのサイトのテーブルAPIにも保存する。
  *
  * 処理順：
- *   1. テーブルAPI（/tables/intake）に保存
- *   2. Pleasanter.net upsert API に登録
- *   ※ どちらかが失敗してもエラーメッセージを表示する
- *
- * 将来の拡張ポイント（AIゲートウェイ追加時）：
- *   - ステップ1の前に callAiGateway(data) を呼び出して結果を data に追加する
+ *   1. Railway 中継サーバー (/api/intake) に POST → Pleasanter に登録
+ *   2. バックアップとして /tables/intake に保存
+ *      （Railway が失敗してもデータが失われないように）
  *
  * @param {Object} data バリデーション済みフォームデータ
  */
@@ -256,42 +252,70 @@ async function submitForm(data) {
   btnLd.classList.remove('hidden');
   errBlk.classList.add('hidden');
 
+  let relaySuccess = false;
+
   try {
-    // ---- ステップ1: テーブルAPI に保存（このサイト内） ----
-    const tableRes = await fetch(TABLE_API_ENDPOINT, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(data),
-    });
+    // ---- ステップ1: Railway 中継サーバー経由で Pleasanter に登録 ----
+    console.log('[intake] Railway中継サーバーに送信開始:', RELAY_API_ENDPOINT);
+    console.log('[intake] 送信データ:', JSON.stringify(data, null, 2));
 
-    if (!tableRes.ok && tableRes.status !== 201) {
-      throw new Error(`テーブルAPI エラー: ${tableRes.status}`);
-    }
-
-    // ---- ステップ2: Railway 中継サーバー経由で Pleasanter に登録 ----
-    // 将来 AIゲートウェイを追加する場合は RELAY_API_ENDPOINT を変更するだけでOK
     const relayRes = await fetch(RELAY_API_ENDPOINT, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(data),
     });
 
+    console.log('[intake] Railway レスポンス status:', relayRes.status);
+    const relayJson = await relayRes.json().catch(() => ({}));
+    console.log('[intake] Railway レスポンス body:', JSON.stringify(relayJson));
+
     if (!relayRes.ok) {
-      const relayJson = await relayRes.json().catch(() => ({}));
-      throw new Error(`中継サーバー エラー: ${relayRes.status} / ${JSON.stringify(relayJson)}`);
+      console.warn('[intake] Railway エラー:', relayJson);
+      // エラーでも続行（バックアップ保存は実行する）
+    } else {
+      relaySuccess = true;
+      console.log('[intake] Railway 送信成功');
     }
 
-    // ---- 成功 ----
-    showSuccessBlock(data.case_key, data.received_at);
+  } catch (relayErr) {
+    console.error('[intake] Railway 接続エラー:', relayErr.message);
+  }
 
-  } catch (err) {
-    console.error('[intake] 送信エラー:', err);
-    showErrorBlock('送信に失敗しました。しばらく時間をおいて再度お試しください。');
+  // ---- ステップ2: バックアップとして /tables/intake に保存 ----
+  try {
+    console.log('[intake] バックアップ保存開始（テーブルAPI）');
+    const tableRes = await fetch(TABLE_API_ENDPOINT, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(data),
+    });
+    console.log('[intake] テーブルAPI レスポンス status:', tableRes.status);
+
+    if (tableRes.status === 200 || tableRes.status === 201) {
+      console.log('[intake] バックアップ保存成功');
+    } else {
+      console.warn('[intake] バックアップ保存失敗:', tableRes.status);
+    }
+  } catch (tableErr) {
+    console.warn('[intake] バックアップ保存エラー（処理は続行）:', tableErr.message);
+  }
+
+  // ---- 結果表示 ----
+  if (relaySuccess) {
+    console.log('[intake] 送信完了（Pleasanter登録成功）');
+    showSuccessBlock(data.case_key, data.received_at);
+  } else {
+    // Railway 失敗でもバックアップには保存済みなので受付番号を表示
+    console.warn('[intake] Railway送信失敗。バックアップには保存済み。');
+    showSuccessBlock(data.case_key, data.received_at);
+    // エラーも合わせて表示
+    showErrorBlock(
+      '※ Pleasanter への自動登録に失敗しました。受付番号は発行済みです。' +
+      'お手数ですが、この受付番号をお控えの上、担当者にお知らせください。'
+    );
     restoreButton(btn, btnTxt, btnLd);
   }
 }
-
-// Pleasanter への登録は Railway の server.js が行います
 
 // ============================================================
 // 画面表示ヘルパー
