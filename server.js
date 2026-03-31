@@ -4,8 +4,11 @@
 const express = require('express');
 const cors    = require('cors');
 
-// .env 読み込み（Railway では不要だが、ローカル開発用に残す）
-try { require('dotenv').config(); } catch (e) { /* dotenv がなくても続行 */ }
+// .env 読み込み（ローカル開発用。Railway 本番では環境変数が直接設定される）
+// 注意：Railway 上では .env ファイルは存在しないため dotenv は何もしない
+if (process.env.NODE_ENV !== 'production') {
+  try { require('dotenv').config(); } catch (e) { /* dotenv がなくても続行 */ }
+}
 
 const app = express();
 
@@ -14,11 +17,13 @@ const PORT               = process.env.PORT               || 3000;
 const PLEASANTER_SITE_ID = (process.env.PLEASANTER_SITE_ID || '').trim();
 const PLEASANTER_API_KEY = (process.env.PLEASANTER_API_KEY || '').trim();
 
+// Railway が設定する PORT を確認（必ず process.env.PORT を使うこと）
 console.log('=== 起動情報 ===');
-console.log('Node   :', process.version);
-console.log('PORT   :', PORT);
-console.log('SiteID :', PLEASANTER_SITE_ID || '未設定');
-console.log('APIKey :', PLEASANTER_API_KEY ? `設定済み(${PLEASANTER_API_KEY.length}文字)` : '未設定');
+console.log('Node        :', process.version);
+console.log('process.env.PORT :', process.env.PORT || '(未設定 → 3000 使用)');
+console.log('PORT (使用) :', PORT);
+console.log('SiteID      :', PLEASANTER_SITE_ID || '未設定');
+console.log('APIKey      :', PLEASANTER_API_KEY ? `設定済み(${PLEASANTER_API_KEY.length}文字)` : '未設定');
 
 // ---- ミドルウェア ----
 app.use(cors({ origin: '*', methods: ['GET','POST','OPTIONS'] }));
@@ -38,9 +43,9 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// ---- Pleasanter upsert ----
+// ---- Pleasanter create ----
 async function callPleasanter(payload, caseKey, receivedAt) {
-  const url = `https://pleasanter.net/fs/api/items/${PLEASANTER_SITE_ID}/upsert`;
+  const url = `https://pleasanter.net/fs/api/items/${PLEASANTER_SITE_ID}/create`;
 
   // 日付フォーマット（YYYY/MM/DD HH:mm:ss）
   function fmtDate(iso) {
@@ -75,7 +80,6 @@ async function callPleasanter(payload, caseKey, receivedAt) {
   const body = JSON.stringify({
     ApiVersion: 1.1,
     ApiKey:     PLEASANTER_API_KEY,
-    Keys:       ['ClassA'],
     Record:     record,
   });
 
@@ -148,14 +152,23 @@ app.get('/api/test-pleasanter', async (_req, res) => {
     return res.status(400).json({ result:'error', message:'環境変数が未設定です' });
   }
   try {
+    const caseKey = 'TEST-' + Date.now();
     const r = await callPleasanter({
-      company_name:'テスト会社', person_name:'テスト太郎', email:'test@example.com',
-      phone:'03-0000-0000', requester_type:'エンドユーザー', request_type:'技術相談',
-      urgency:'低い', store_name:'テスト店舗', store_address:'東京都千代田区',
-      equipment_type:'その他', symptoms:'APIテスト送信', business_impact:'営業継続可能',
-      channel:'web',
-    }, 'TEST-'+Date.now(), new Date().toISOString());
-    res.json({ result:'ok', pleasanter_response: r });
+      company_name:    'テスト会社',
+      person_name:     'テスト太郎',
+      email:           'test@example.com',
+      phone:           '03-0000-0000',
+      requester_type:  'エンドユーザー',
+      request_type:    '技術相談',
+      urgency:         '低い',
+      store_name:      'テスト店舗',
+      store_address:   '東京都千代田区',
+      equipment_type:  'その他',
+      symptoms:        'APIテスト送信',
+      business_impact: '営業継続可能',
+      channel:         'web',
+    }, caseKey, new Date().toISOString());
+    res.json({ result:'ok', case_key: caseKey, pleasanter_response: r });
   } catch (e) {
     res.status(500).json({ result:'error', message: e.message });
   }
