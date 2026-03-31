@@ -73,7 +73,7 @@ app.use(express.static('public'));
 // および日付項目（DateA）のマッピングを定数で管理します
 //
 const PLEASANTER_COLUMNS = {
-  ClassA:       'CaseKey',         // 受付番号（upsert の Keys にも使用）
+  ClassA:       'case_key',        // 受付番号（upsert の Keys にも使用）
   ClassB:       'channel',         // チャネル (web / etc.)
   ClassC:       'requester_type',  // 依頼者区分
   ClassD:       'company_name',    // 会社名
@@ -200,10 +200,8 @@ async function callPleasanter(payload, caseKey, receivedAt) {
     if (pleasanterCol === 'DateA') {
       // 日付は receivedAt を使用
       record[pleasanterCol] = receivedAt;
-    } else if (pleasanterCol === 'ClassA') {
-      // 受付番号は caseKey を使用
-      record[pleasanterCol] = caseKey;
     } else {
+      // payload から値を取得（case_key は payload.case_key として渡される）
       record[pleasanterCol] = payload[payloadKey] || '';
     }
   }
@@ -222,8 +220,7 @@ async function callPleasanter(payload, caseKey, receivedAt) {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(requestBody),
-    timeout: 15000,  // 15秒タイムアウト
-  });
+  });  // タイムアウトは node-fetch v2 では非対応のため省略
 
   const responseBody = await response.json();
   console.log('[Pleasanter] Response status:', response.status);
@@ -267,11 +264,13 @@ app.post('/api/intake', async (req, res) => {
       });
     }
 
-    // ---- 2. 受付番号・受付日時を採番 ----
-    const caseKey    = generateCaseKey();
-    const receivedAt = new Date().toISOString().replace('Z', '');  // 例: 2026-03-31T10:30:00.000
+    // ---- 2. 受付番号・受付日時を取得（フロントから送られてくる値を使用） ----
+    // フロント側で採番済みの case_key と received_at をそのまま使う
+    const caseKey    = body.case_key    || generateCaseKey();
+    const receivedAt = body.received_at || new Date().toISOString();
 
     console.log('[/api/intake] 受付番号:', caseKey);
+    console.log('[/api/intake] 受付日時:', receivedAt);
 
     // ---- 3. Pleasanter.net に登録 ----
     // 環境変数が未設定の場合はスキップ（開発時のフォールバック）
