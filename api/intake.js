@@ -44,37 +44,32 @@ module.exports = async function handler(req, res) {
 
   const titleValue = `[${caseKey}] ${body.company_name||''} ${body.store_name||''}`.trim().slice(0, 100);
 
-  // Pleasanter API仕様：
-  // Title は Record の外（トップレベル）に置く
-  // ClassA〜J、DescriptionA〜G、DateA は Record の中に置く
+  // Pleasanter API：Title はトップレベル、各フィールドも Record の外に並べる
   const requestBody = {
-    ApiVersion: 1.1,
-    ApiKey:     API_KEY,
-    Title:      titleValue,        // ← Record の外に置く
-    Record: {
-      ClassA:       caseKey,
-      ClassB:       body.channel         || 'web',
-      ClassC:       body.requester_type  || '',
-      ClassD:       body.company_name    || '',
-      ClassE:       body.person_name     || '',
-      ClassF:       body.request_type    || '',
-      ClassG:       body.urgency         || '',
-      ClassH:       body.store_name      || '',
-      ClassI:       body.equipment_type  || '',
-      ClassJ:       body.maker           || '',
-      DescriptionA: body.store_address   || '',
-      DescriptionB: body.model           || '',
-      DescriptionC: body.error_code      || '',
-      DescriptionD: body.symptoms        || '',
-      DescriptionE: body.actions_taken   || '',
-      DescriptionF: body.business_impact || '',
-      DescriptionG: body.notes           || '',
-      DateA:        fmtDate(receivedAt),
-    },
+    ApiVersion:   1.1,
+    ApiKey:       API_KEY,
+    Title:        titleValue,
+    ClassA:       caseKey,
+    ClassB:       body.channel         || 'web',
+    ClassC:       body.requester_type  || '',
+    ClassD:       body.company_name    || '',
+    ClassE:       body.person_name     || '',
+    ClassF:       body.request_type    || '',
+    ClassG:       body.urgency         || '',
+    ClassH:       body.store_name      || '',
+    ClassI:       body.equipment_type  || '',
+    ClassJ:       body.maker           || '',
+    DescriptionA: body.store_address   || '',
+    DescriptionB: body.model           || '',
+    DescriptionC: body.error_code      || '',
+    DescriptionD: body.symptoms        || '',
+    DescriptionE: body.actions_taken   || '',
+    DescriptionF: body.business_impact || '',
+    DescriptionG: body.notes           || '',
+    DateA:        fmtDate(receivedAt),
   };
 
   console.log('[intake] caseKey:', caseKey);
-  console.log('[intake] title:', titleValue);
   console.log('[intake] requestBody:', JSON.stringify(requestBody));
 
   try {
