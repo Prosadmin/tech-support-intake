@@ -1,5 +1,19 @@
 'use strict';
 
+/**
+ * api/intake.js
+ * Vercel Serverless Function
+ * Pleasanter のレコード作成APIに正しい形式で送信する。
+ *
+ * Pleasanter API 仕様：
+ *   Title / Body / Status はトップレベル
+ *   ClassA, ClassB...           → ClassHash の中
+ *   NumA, NumB...               → NumHash の中
+ *   DateA, DateB...             → DateHash の中
+ *   DescriptionA, DescriptionB...→ DescriptionHash の中
+ *   CheckA, CheckB...           → CheckHash の中
+ */
+
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -20,10 +34,13 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ result: 'error', message: 'Method Not Allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ result: 'error', message: 'Method Not Allowed' });
+  }
 
   const body = req.body || {};
 
+  // ---- 必須項目チェック ----
   for (const f of REQUIRED) {
     if (!body[f] || !String(body[f]).trim()) {
       return res.status(400).json({ result: 'error', message: `${f} は必須です` });
@@ -32,7 +49,6 @@ module.exports = async function handler(req, res) {
 
   const SITE_ID = (process.env.PLEASANTER_SITE_ID || '').trim();
   const API_KEY = (process.env.PLEASANTER_API_KEY || '').trim();
-
   if (!SITE_ID || !API_KEY) {
     return res.status(500).json({ result: 'error', message: 'サーバー環境変数が未設定です' });
   }
@@ -41,32 +57,37 @@ module.exports = async function handler(req, res) {
   const yyyymmdd = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
   const caseKey    = body.case_key    || `WEB-${yyyymmdd}-${Date.now().toString().slice(-6)}`;
   const receivedAt = body.received_at || now.toISOString();
-
   const titleValue = `[${caseKey}] ${body.company_name||''} ${body.store_name||''}`.trim().slice(0, 100);
 
-  // Pleasanter API：Title はトップレベル、各フィールドも Record の外に並べる
+  // ---- ★ Pleasanter 公式仕様に従ったリクエストボディ ----
   const requestBody = {
-    ApiVersion:   1.1,
-    ApiKey:       API_KEY,
-    Title:        titleValue,
-    ClassA:       caseKey,
-    ClassB:       body.channel         || 'web',
-    ClassC:       body.requester_type  || '',
-    ClassD:       body.company_name    || '',
-    ClassE:       body.person_name     || '',
-    ClassF:       body.request_type    || '',
-    ClassG:       body.urgency         || '',
-    ClassH:       body.store_name      || '',
-    ClassI:       body.equipment_type  || '',
-    ClassJ:       body.maker           || '',
-    DescriptionA: body.store_address   || '',
-    DescriptionB: body.model           || '',
-    DescriptionC: body.error_code      || '',
-    DescriptionD: body.symptoms        || '',
-    DescriptionE: body.actions_taken   || '',
-    DescriptionF: body.business_impact || '',
-    DescriptionG: body.notes           || '',
-    DateA:        fmtDate(receivedAt),
+    ApiVersion: 1.1,
+    ApiKey:     API_KEY,
+    Title:      titleValue,        // ← トップレベル
+    ClassHash: {                   // ← 分類項目は ClassHash で囲む
+      ClassA: caseKey,
+      ClassB: body.channel         || 'web',
+      ClassC: body.requester_type  || '',
+      ClassD: body.company_name    || '',
+      ClassE: body.person_name     || '',
+      ClassF: body.request_type    || '',
+      ClassG: body.urgency         || '',
+      ClassH: body.store_name      || '',
+      ClassI: body.equipment_type  || '',
+      ClassJ: body.maker           || '',
+    },
+    DescriptionHash: {             // ← 説明項目は DescriptionHash で囲む
+      DescriptionA: body.store_address   || '',
+      DescriptionB: body.model           || '',
+      DescriptionC: body.error_code      || '',
+      DescriptionD: body.symptoms        || '',
+      DescriptionE: body.actions_taken   || '',
+      DescriptionF: body.business_impact || '',
+      DescriptionG: body.notes           || '',
+    },
+    DateHash: {                    // ← 日付項目は DateHash で囲む
+      DateA: fmtDate(receivedAt),
+    },
   };
 
   console.log('[intake] caseKey:', caseKey);
@@ -100,6 +121,7 @@ module.exports = async function handler(req, res) {
       result:      'ok',
       case_key:    caseKey,
       received_at: receivedAt,
+      pleasanter_id: json.Id,
       message:     '受付が完了しました',
     });
 
