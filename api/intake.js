@@ -1,12 +1,5 @@
-/**
- * api/intake.js
- * Vercel Serverless Function
- * フロントエンド → この関数 → Pleasanter API
- */
-
 'use strict';
 
-// 日付フォーマット（YYYY/MM/DD HH:mm:ss）
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -14,7 +7,6 @@ function fmtDate(iso) {
   return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-// 必須フィールド
 const REQUIRED = [
   'requester_type', 'company_name', 'person_name',
   'email', 'phone', 'request_type', 'urgency',
@@ -23,31 +15,21 @@ const REQUIRED = [
 ];
 
 module.exports = async function handler(req, res) {
-  // CORS ヘッダー
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // プリフライト
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  // POST のみ受け付ける
-  if (req.method !== 'POST') {
-    return res.status(405).json({ result: 'error', message: 'Method Not Allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ result: 'error', message: 'Method Not Allowed' });
 
   const body = req.body || {};
 
-  // バリデーション
   for (const f of REQUIRED) {
     if (!body[f] || !String(body[f]).trim()) {
       return res.status(400).json({ result: 'error', message: `${f} は必須です` });
     }
   }
 
-  // 環境変数
   const SITE_ID = (process.env.PLEASANTER_SITE_ID || '').trim();
   const API_KEY = (process.env.PLEASANTER_API_KEY || '').trim();
 
@@ -55,43 +37,45 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ result: 'error', message: 'サーバー環境変数が未設定です' });
   }
 
-  // 受付番号・受付日時
-  const now        = new Date();
-  const yyyymmdd   = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  const now      = new Date();
+  const yyyymmdd = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
   const caseKey    = body.case_key    || `WEB-${yyyymmdd}-${Date.now().toString().slice(-6)}`;
   const receivedAt = body.received_at || now.toISOString();
 
-  // Pleasanter へ送信するレコード
-  const record = {
-    Title:        `[${caseKey}] ${body.company_name||''} ${body.store_name||''}`.trim().slice(0, 100),
-    ClassA:       caseKey,
-    ClassB:       body.channel         || 'web',
-    ClassC:       body.requester_type  || '',
-    ClassD:       body.company_name    || '',
-    ClassE:       body.person_name     || '',
-    ClassF:       body.request_type    || '',
-    ClassG:       body.urgency         || '',
-    ClassH:       body.store_name      || '',
-    ClassI:       body.equipment_type  || '',
-    ClassJ:       body.maker           || '',
-    DescriptionA: body.store_address   || '',
-    DescriptionB: body.model           || '',
-    DescriptionC: body.error_code      || '',
-    DescriptionD: body.symptoms        || '',
-    DescriptionE: body.actions_taken   || '',
-    DescriptionF: body.business_impact || '',
-    DescriptionG: body.notes           || '',
-    DateA:        fmtDate(receivedAt),
-  };
+  const titleValue = `[${caseKey}] ${body.company_name||''} ${body.store_name||''}`.trim().slice(0, 100);
 
-  const requestBody = JSON.stringify({
+  // Pleasanter API仕様：
+  // Title は Record の外（トップレベル）に置く
+  // ClassA〜J、DescriptionA〜G、DateA は Record の中に置く
+  const requestBody = {
     ApiVersion: 1.1,
     ApiKey:     API_KEY,
-    Record:     record,
-  });
+    Title:      titleValue,        // ← Record の外に置く
+    Record: {
+      ClassA:       caseKey,
+      ClassB:       body.channel         || 'web',
+      ClassC:       body.requester_type  || '',
+      ClassD:       body.company_name    || '',
+      ClassE:       body.person_name     || '',
+      ClassF:       body.request_type    || '',
+      ClassG:       body.urgency         || '',
+      ClassH:       body.store_name      || '',
+      ClassI:       body.equipment_type  || '',
+      ClassJ:       body.maker           || '',
+      DescriptionA: body.store_address   || '',
+      DescriptionB: body.model           || '',
+      DescriptionC: body.error_code      || '',
+      DescriptionD: body.symptoms        || '',
+      DescriptionE: body.actions_taken   || '',
+      DescriptionF: body.business_impact || '',
+      DescriptionG: body.notes           || '',
+      DateA:        fmtDate(receivedAt),
+    },
+  };
 
   console.log('[intake] caseKey:', caseKey);
-  console.log('[intake] record:', requestBody);
+  console.log('[intake] title:', titleValue);
+  console.log('[intake] requestBody:', JSON.stringify(requestBody));
 
   try {
     const plRes = await fetch(
@@ -99,7 +83,7 @@ module.exports = async function handler(req, res) {
       {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body:    requestBody,
+        body:    JSON.stringify(requestBody),
       }
     );
 
@@ -113,7 +97,7 @@ module.exports = async function handler(req, res) {
     if (!plRes.ok) {
       return res.status(502).json({ result: 'error', message: `Pleasanter HTTP ${plRes.status}: ${text}` });
     }
-    if (json.Status && json.Status !== 200) {
+    if (json.StatusCode && json.StatusCode !== 200) {
       return res.status(502).json({ result: 'error', message: `Pleasanter エラー: ${json.Message || text}` });
     }
 
@@ -128,4 +112,4 @@ module.exports = async function handler(req, res) {
     console.error('[intake] fetch error:', e.message);
     return res.status(500).json({ result: 'error', message: e.message });
   }
-}
+};
