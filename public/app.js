@@ -26,10 +26,10 @@
 // ============================================================
 
 /**
- * Railway 中継サーバーのエンドポイント（Pleasanter への登録を担当）
- * ここを変更するだけで送信先を切り替えられる
+ * Vercel Serverless Function のエンドポイント（Pleasanter への登録を担当）
+ * 相対パスにすることでドメインに依存しない
  */
-const RELAY_API_ENDPOINT = 'https://tech-support-intake-production.up.railway.app/api/intake';
+const RELAY_API_ENDPOINT = '/api/intake';
 
 /** バックアップ保存用テーブルAPI エンドポイント（このサイト内） */
 const TABLE_API_ENDPOINT = '/tables/intake';
@@ -256,7 +256,7 @@ async function submitForm(data) {
 
   try {
     // ---- ステップ1: Railway 中継サーバー経由で Pleasanter に登録 ----
-    console.log('[intake] Railway中継サーバーに送信開始:', RELAY_API_ENDPOINT);
+    console.log('[intake] Vercel Functionに送信開始:', RELAY_API_ENDPOINT);
     console.log('[intake] 送信データ:', JSON.stringify(data, null, 2));
 
     const relayRes = await fetch(RELAY_API_ENDPOINT, {
